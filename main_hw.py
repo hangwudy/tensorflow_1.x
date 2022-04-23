@@ -1,6 +1,6 @@
 import argparse
 
-from ResNet import ResNet
+from ResNet_with_data_loader import ResNet
 from utils import *
 
 """parsing and configuration"""
@@ -13,7 +13,7 @@ def parse_args():
     parser.add_argument('--dataset', type=str, default='tiny', help='[cifar10, cifar100, mnist, fashion-mnist, tiny')
 
     parser.add_argument('--epoch', type=int, default=82, help='The number of epochs to run')
-    parser.add_argument('--batch_size', type=int, default=256, help='The size of batch per gpu')
+    parser.add_argument('--batch_size', type=int, default=128, help='The size of batch per gpu')
     parser.add_argument('--res_n', type=int, default=18, help='18, 34, 50, 101, 152')
 
     parser.add_argument('--lr', type=float, default=0.001, help='learning rate')

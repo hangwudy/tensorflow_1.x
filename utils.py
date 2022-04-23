@@ -121,7 +121,6 @@ def load_tiny():
         annotations[sChild] = j
         for c in os.listdir(sChildPath):
             X = Image.open(os.path.join(sChildPath, c)).convert("RGB")
-            # X = misc.imread(os.path.join(sChildPath, c), mode='RGB')
             if len(np.shape(X)) == 2:
                 X_train[i] = np.array([X, X, X])
             else:
@@ -147,7 +146,6 @@ def load_tiny():
         if val_annotations_map[sChild] in annotations.keys():
             sChildPath = os.path.join(testPath, sChild)
             X = Image.open(sChildPath).convert("RGB")
-            # X = misc.imread(sChildPath, mode='RGB')
             if len(np.shape(X)) == 2:
                 X_test[i] = np.array([X, X, X])
             else:
@@ -189,7 +187,8 @@ def load_tiny():
 def normalize(X_train, X_test):
     mean = np.mean(X_train, axis=(0, 1, 2, 3))
     std = np.std(X_train, axis=(0, 1, 2, 3))
-
+    print("mean = {}, std = {}".format(mean, std))
+    
     X_train = (X_train - mean) / std
     X_test = (X_test - mean) / std
 
@@ -247,3 +246,7 @@ def data_augmentation(batch, img_size, dataset_name):
         batch = _random_flip_leftright(batch)
         batch = _random_crop(batch, [img_size, img_size], 4)
     return batch
+
+
+if __name__ == '__main__':
+    load_tiny()

@@ -1,5 +1,6 @@
 import time
 
+from dataloader import get_dataset
 from ops import *
 from utils import *
 
@@ -10,32 +11,12 @@ class ResNet(object):
         self.sess = sess
         self.dataset_name = args.dataset
 
-        if self.dataset_name == 'cifar10':
-            self.train_x, self.train_y, self.test_x, self.test_y = load_cifar10()
-            self.img_size = 32
-            self.c_dim = 3
-            self.label_dim = 10
-
-        if self.dataset_name == 'cifar100':
-            self.train_x, self.train_y, self.test_x, self.test_y = load_cifar100()
-            self.img_size = 32
-            self.c_dim = 3
-            self.label_dim = 100
-
-        if self.dataset_name == 'mnist':
-            self.train_x, self.train_y, self.test_x, self.test_y = load_mnist()
-            self.img_size = 28
-            self.c_dim = 1
-            self.label_dim = 10
-
-        if self.dataset_name == 'fashion-mnist':
-            self.train_x, self.train_y, self.test_x, self.test_y = load_fashion()
-            self.img_size = 28
-            self.c_dim = 1
-            self.label_dim = 10
-
         if self.dataset_name == 'tiny':
-            self.train_x, self.train_y, self.test_x, self.test_y = load_tiny()
+            train_dataset, val_dataset = get_dataset()
+            train_iter = train_dataset.make_one_shot_iterator()
+            val_iter = val_dataset.make_one_shot_iterator()
+            self.train_x, self.train_y = train_iter.get_next()
+            self.test_x, self.test_y = val_iter.get_next()
             self.img_size = 64
             self.c_dim = 3
             self.label_dim = 200
@@ -47,7 +28,7 @@ class ResNet(object):
 
         self.epoch = args.epoch
         self.batch_size = args.batch_size
-        self.iteration = len(self.train_x) // self.batch_size
+        self.iteration = 100000 // self.batch_size
 
         self.init_lr = args.lr
 
@@ -65,7 +46,7 @@ class ResNet(object):
 
             residual_list = get_residual_layer(self.res_n)
 
-            ch = 32  # paper is 64
+            ch = 64  # paper is 64
             x = conv(x, channels=ch, kernel=3, stride=1, scope='conv')
 
             for i in range(residual_list[0]):
@@ -116,9 +97,8 @@ class ResNet(object):
                                            name='train_inputs')
         self.train_labels = tf.placeholder(tf.float32, [self.batch_size, self.label_dim], name='train_labels')
 
-        self.test_inptus = tf.placeholder(tf.float32, [self.batch_size, self.img_size, self.img_size, self.c_dim],
-                                          name='test_inputs')
-        self.test_labels = tf.placeholder(tf.float32, [self.batch_size, self.label_dim], name='test_labels')
+        self.test_inptus = tf.placeholder(tf.float32, self.test_x.shape, name='test_inputs')
+        self.test_labels = tf.placeholder(tf.float32, self.test_y.shape, name='test_labels')
 
         self.lr = tf.placeholder(tf.float32, name='learning_rate')
 
@@ -164,7 +144,7 @@ class ResNet(object):
         could_load, checkpoint_counter = self.load(self.checkpoint_dir)
         if could_load:
             epoch_lr = self.init_lr
-            start_epoch = (int)(checkpoint_counter / self.iteration)
+            start_epoch = (int)(checkpoint_counter // self.iteration)
             start_batch_id = checkpoint_counter - start_epoch * self.iteration
             counter = checkpoint_counter
 
@@ -188,24 +168,20 @@ class ResNet(object):
 
             # get batch data
             for idx in range(start_batch_id, self.iteration):
-                batch_x = self.train_x[idx * self.batch_size:(idx + 1) * self.batch_size]
-                batch_y = self.train_y[idx * self.batch_size:(idx + 1) * self.batch_size]
-                print(batch_x.shape)
-                print(batch_y.shape)
-                batch_x = data_augmentation(batch_x, self.img_size, self.dataset_name)
+                batch_x = self.train_x
+                batch_y = self.train_y
+
+                # batch_x = data_augmentation(batch_x, self.img_size, self.dataset_name)
 
                 train_feed_dict = {
-                    self.train_inputs: batch_x,
-                    self.train_labels: batch_y,
+                    self.train_inputs: batch_x.eval(),
+                    self.train_labels: batch_y.eval(),
                     self.lr: epoch_lr
                 }
 
-                if idx * self.batch_size % 10000 > (idx + 1) * self.batch_size % 10000:
-                    idx = 0
-
                 test_feed_dict = {
-                    self.test_inptus: self.test_x[idx * self.batch_size % 10000:(idx + 1) * self.batch_size % 10000],
-                    self.test_labels: self.test_y[idx * self.batch_size % 10000:(idx + 1) * self.batch_size % 10000]
+                    self.test_inptus: self.test_x.eval(),
+                    self.test_labels: self.test_y.eval()
                 }
 
                 # update network
@@ -221,8 +197,10 @@ class ResNet(object):
                 # display training status
                 counter += 1
                 print(
-                    "Epoch: [%2d] [%5d/%5d] time: %4.4f, train_accuracy: %.2f, test_accuracy: %.2f, learning_rate : %.4f" \
-                    % (epoch, idx, self.iteration, time.time() - start_time, train_accuracy, test_accuracy, epoch_lr))
+                    "Epoch: [%2d] [%5d/%5d] time: %4.4f, train_loss: %.2f, train_accuracy: %.2f, test_loss: %.2f, test_accuracy: %.2f, learning_rate : %.4f" \
+                    % (epoch, idx, self.iteration, time.time() - start_time, train_loss, train_accuracy, test_loss,
+                       test_accuracy,
+                       epoch_lr))
 
             # After an epoch, start_batch_id is set to zero
             # non-zero value is only for the first epoch after loading pre-trained model
@@ -273,8 +251,8 @@ class ResNet(object):
             print(" [!] Load failed...")
 
         test_feed_dict = {
-            self.test_inptus: self.test_x,
-            self.test_labels: self.test_y
+            self.test_inptus: self.test_x.eval(),
+            self.test_labels: self.test_y.eval()
         }
 
         test_accuracy = self.sess.run(self.test_accuracy, feed_dict=test_feed_dict)
